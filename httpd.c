@@ -47,7 +47,7 @@ int get_line(int, char*, int);
 void headers(int, const char*);
 void not_found(int);
 void serve_file(int, const char*);
-int startup(u_short*);
+int startup(uint16_t*);
 void unimplemented(int);
 
 /**********************************************************************/
@@ -79,7 +79,7 @@ void accept_request(int client) {
     method[i] = '\0';
 
     //如果请求的方法不是 GET 或 POST 任意一个的话就直接发送 response 告诉客户端没实现该方法
-    if (strcasecmp(method, "GET") && strcasecmp(method, "POST")) {
+    if (strcasecmp(method, "GET") != 0 && strcasecmp(method, "POST") != 0) {
         unimplemented(client);
         return;
     }
@@ -114,7 +114,7 @@ void accept_request(int client) {
         if (*query_string == '?') {
             //如果是 ？ 的话，证明这个请求需要调用 cgi，将 cgi 标志变量置一(true)
             cgi = 1;
-            //从字符 ？ 处把字符串 url 给分隔会两份
+            //从字符 ？ 处把字符串 url 给分隔为两份
             *query_string = '\0';
             //使指针指向字符 ？后面的那个字符
             query_string++;
@@ -138,7 +138,7 @@ void accept_request(int client) {
     } else {
         //文件存在，那去跟常量S_IFMT相与，相与之后的值可以用来判断该文件是什么类型的
         // S_IFMT参读《TLPI》P281，与下面的三个常量一样是包含在<sys/stat.h>
-        if ((st.st_mode & S_IFMT) == S_IFDIR)
+        if (S_ISDIR(st.st_mode))
             //如果这个文件是个目录，那就需要再在 path 后面拼接一个"/index.html"的字符串
             strcat(path, "/index.html");
 
@@ -297,9 +297,9 @@ void execute_cgi(int client, const char* path,
         char length_env[255];
 
         // dup2()包含<unistd.h>中，参读《TLPI》P97
-        //将子进程的输出由标准输出重定向到 cgi_ouput 的管道写端上
+        //将子进程的标准输出重定向到 cgi_ouput 的管道写端上
         dup2(cgi_output[1], 1);
-        //将子进程的输出由标准输入重定向到 cgi_ouput 的管道读端上
+        //将子进程的标准输入重定向到 cgi_ouput 的管道读端上
         dup2(cgi_input[0], 0);
         //关闭 cgi_ouput 管道的读端与cgi_input 管道的写端
         close(cgi_output[0]);
@@ -374,7 +374,7 @@ int get_line(int sock, char* buf, int size) {
         /* DEBUG printf("%02X\n", c); */
         if (n > 0) {
             if (c == '\r') {
-                //
+                // 窥探下一个字节是否为 '\n'
                 n = recv(sock, &c, 1, MSG_PEEK);
                 /* DEBUG printf("%02X\n", c); */
                 if ((n > 0) && (c == '\n'))
@@ -478,7 +478,7 @@ void serve_file(int client, const char* filename) {
  * Parameters: pointer to variable containing the port to connect on
  * Returns: the socket */
 /**********************************************************************/
-int startup(u_short* port) {
+int startup(uint16_t* port) {
     int httpd = 0;
     // sockaddr_in 是 IPV4的套接字地址结构。定义在<netinet/in.h>,参读《TLPI》P1202
     struct sockaddr_in name;
@@ -506,7 +506,7 @@ int startup(u_short* port) {
     //如果调用 bind 后端口号仍然是0，则手动调用getsockname()获取端口号
     if (*port == 0) /* if dynamically allocating a port */
     {
-        int namelen = sizeof(name);
+        uint32_t namelen = sizeof(name);
         // getsockname()包含于<sys/socker.h>中，参读《TLPI》P1263
         //调用getsockname()获取系统给 httpd 这个 socket 随机分配的端口号
         if (getsockname(httpd, (struct sockaddr*)&name, &namelen) == -1)
@@ -550,11 +550,11 @@ void unimplemented(int client) {
 
 int main(void) {
     int server_sock = -1;
-    u_short port = 0;
+    uint16_t port = 0;
     int client_sock = -1;
     // sockaddr_in 是 IPV4的套接字地址结构。定义在<netinet/in.h>,参读《TLPI》P1202
     struct sockaddr_in client_name;
-    int client_name_len = sizeof(client_name);
+    uint32_t client_name_len = sizeof(client_name);  // 16 in x86_64 Linux
     // pthread_t newthread;
 
     server_sock = startup(&port);
